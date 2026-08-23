@@ -3,9 +3,11 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { z } from "zod";
 
 const GEMINI_MODEL = "gemini-3.6-flash";
+export const MAX_ORDER_QUANTITY = 10000;
+export const MAX_DAILY_PRODUCTION = 1000;
 const aiOrderSchema = z.object({
   product_type: z.enum(["ly_su", "dia", "bat", "binh", "am_tra", "khac"]),
-  quantity: z.number().int().min(1).max(1000000),
+  quantity: z.number().int().min(1).max(MAX_ORDER_QUANTITY),
   glaze_type: z.string().max(200),
   deadline_days: z.number().int().min(1).max(3650),
   priority: z.enum(["normal", "urgent"]),
@@ -31,11 +33,52 @@ Quy tắc:
 - "gấp", "khẩn", "urgent" → priority: urgent
 - Không có deadline → deadline_days: 14
 - Số lượng mặc định: 1 nếu không nêu
+- Chỉ nhận đơn tối đa ${MAX_ORDER_QUANTITY.toLocaleString("vi-VN")} sản phẩm
+- Công suất tham chiếu là ${MAX_DAILY_PRODUCTION.toLocaleString("vi-VN")} sản phẩm/ngày
 - product_type map: ly/cốc → ly_su, đĩa → dia, bát/tô → bat, bình/lọ → binh, ấm → am_tra`;
 
+export function getOrderInputError(rawText: string): string | null {
+  if (/(^|[^\d])-\s*\d+(?:[.,]\d+)?/.test(rawText)) {
+    return "Số lượng và thời hạn phải là số dương";
+  }
+
+  if (!/(ly|cốc|đĩa|bát|tô|bình|lọ|ấm)\b/i.test(rawText)) {
+    return "Không thể phân tích: sản phẩm chưa được hỗ trợ. Vui lòng nhập ly, đĩa, bát, bình hoặc ấm trà.";
+  }
+
+  return null;
+}
+
+export function getOrderFeasibilityError(parsed: ParsedOrderSpecs): string | null {
+  if (parsed.product_type === "khac") {
+    return "Không thể phân tích: sản phẩm chưa được hỗ trợ. Vui lòng nhập ly, đĩa, bát, bình hoặc ấm trà.";
+  }
+
+  const requiredDays = Math.max(1, Math.ceil(parsed.quantity / MAX_DAILY_PRODUCTION));
+  if (parsed.quantity > MAX_ORDER_QUANTITY) {
+    return `Đơn hàng vượt giới hạn ${MAX_ORDER_QUANTITY.toLocaleString("vi-VN")} sản phẩm/đơn. Với công suất tham chiếu ${MAX_DAILY_PRODUCTION.toLocaleString("vi-VN")} sản phẩm/ngày, số lượng ${parsed.quantity.toLocaleString("vi-VN")} cần tối thiểu ${requiredDays.toLocaleString("vi-VN")} ngày. Giải pháp: chia thành nhiều đơn/đợt hoặc liên hệ xưởng để xác nhận công suất riêng.`;
+  }
+
+  if (parsed.deadline_days < requiredDays) {
+    return `Không thể hoàn thành trong ${parsed.deadline_days} ngày. Với số lượng ${parsed.quantity.toLocaleString("vi-VN")}, cần tối thiểu ${requiredDays} ngày. Vui lòng chọn deadline từ ${requiredDays} ngày.`;
+  }
+
+  return null;
+}
+
+function parseVietnameseNumber(value: string, scale?: string): number {
+  const normalized = value.includes(".") && !value.includes(",")
+    ? value.replace(/\./g, "")
+    : value.replace(/\./g, "").replace(",", ".");
+  const multiplier = scale === "tỷ" ? 1_000_000_000 : scale === "triệu" ? 1_000_000 : scale === "nghìn" || scale === "k" ? 1_000 : 1;
+  return Math.round(Number(normalized) * multiplier);
+}
+
 function fallbackParse(rawText: string): ParsedOrderSpecs {
-  const quantityMatch = rawText.match(/(\d+)\s*(ly|cốc|đĩa|bát|bình|ấm|cái|chiếc|sp)/i);
-  const quantity = quantityMatch ? parseInt(quantityMatch[1], 10) : 1;
+  const quantityMatch = rawText.match(/(\d+(?:[.,]\d+)?)\s*(tỷ|triệu|nghìn|k)?\s*(ly|cốc|đĩa|bát|bình|ấm|cái|chiếc|sp)/i);
+  const quantity = quantityMatch
+    ? parseVietnameseNumber(quantityMatch[1], quantityMatch[2]?.toLowerCase())
+    : 1;
 
   const deadlineMatch = rawText.match(/(\d+)\s*ngày/);
   const deadline_days = deadlineMatch ? parseInt(deadlineMatch[1], 10) : 14;
@@ -76,6 +119,9 @@ function extractJson(text: string): ParsedOrderSpecs {
 }
 
 export async function parseOrderText(rawText: string): Promise<ParsedOrderSpecs> {
+  const inputError = getOrderInputError(rawText);
+  if (inputError) throw new Error(inputError);
+
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {

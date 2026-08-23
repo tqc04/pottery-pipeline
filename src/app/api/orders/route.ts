@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getOrderInputError } from "@/lib/ai-parser";
 import { createOrderFromText } from "@/lib/workflow";
 
 export const dynamic = "force-dynamic";
@@ -36,10 +37,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "rawText tối đa 2000 ký tự" }, { status: 400 });
     }
 
+    const inputError = getOrderInputError(rawText);
+    if (inputError) {
+      return NextResponse.json({ error: inputError }, { status: 400 });
+    }
+
     const order = await createOrderFromText(rawText.trim());
     return NextResponse.json(order, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Lỗi tạo đơn";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const isInputError = message.startsWith("Không thể") || message.startsWith("Đơn hàng vượt");
+    return NextResponse.json({ error: message }, { status: isInputError ? 422 : 500 });
   }
 }

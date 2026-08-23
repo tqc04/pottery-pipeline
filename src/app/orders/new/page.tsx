@@ -24,7 +24,7 @@ export default function NewOrderPage() {
       });
       const data = await res.json();
       if (res.ok) setParsed(data);
-      else alert(data.error || "Lỗi parse");
+      else alert(data.error || "Không thể phân tích đơn hàng");
     } catch {
       alert("Lỗi kết nối");
     } finally {
@@ -45,7 +45,7 @@ export default function NewOrderPage() {
       if (res.ok) {
         router.push(`/orders/${data.id}`);
       } else {
-        alert(data.error || "Lỗi tạo đơn");
+        alert(data.error || "Không thể tạo đơn hàng");
       }
     } catch {
       alert("Lỗi kết nối");

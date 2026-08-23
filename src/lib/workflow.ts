@@ -5,7 +5,7 @@ import type {
   ProductionTask,
 } from "@/types/prisma";
 import { Prisma } from "@/types/prisma";
-import { parseOrderText } from "@/lib/ai-parser";
+import { getOrderFeasibilityError, parseOrderText } from "@/lib/ai-parser";
 import {
   alertTypeToSeverity,
   calcLeadTimeDays,
@@ -67,6 +67,9 @@ async function createAlert(
 
 export async function createOrderFromText(rawText: string) {
   const parsed = await parseOrderText(rawText);
+  const feasibilityError = getOrderFeasibilityError(parsed);
+  if (feasibilityError) throw new Error(feasibilityError);
+
   return createOrderFromParsed(rawText, parsed);
 }
 
