@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  active
+  completed
+  cancelled
+}
+
+enum Priority {
+  normal
+  urgent
+}
+
+enum TaskStatus {
+  pending
+  in_progress
+  completed
+}
+
+enum AlertType {
+  DELAYED
+  DEADLINE_SOON
+  STUCK
+  ORDER_CREATED
+  STAGE_CHANGED
+  ORDER_COMPLETED
+}
+
+enum AlertSeverity {
+  info
+  warning
+  critical
+}
+
+model ProductionStage {
+  id       Int              @id @default(autoincrement())
+  name     String
+  slug     String           @unique
+  sequence Int              @unique
+  slaHours Int              @map("sla_hours")
+  tasks    ProductionTask[]
+  orders   Order[]          @relation("CurrentStage")
+
+  @@map("production_stages")
+}
+
+model Order {
+  id             Int              @id @default(autoincrement())
+  orderCode      String           @unique @map("order_code")
+  rawInput       String?          @map("raw_input") @db.Text
+  parsedSpecs    Json?            @map("parsed_specs")
+  quantity       Int              @default(1)
+  productType    String           @map("product_type")
+  glazeType      String?          @map("glaze_type")
+  deadline       DateTime
+  priority       Priority         @default(normal)
+  status         OrderStatus      @default(active)
+  currentStageId Int?             @map("current_stage_id")
+  currentStage   ProductionStage? @relation("CurrentStage", fields: [currentStageId], references: [id])
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  completedAt    DateTime?        @map("completed_at")
+  tasks          ProductionTask[]
+  alerts         Alert[]
+  activityLogs   ActivityLog[]
+
+  @@map("orders")
+}
+
+model ProductionTask {
+  id          Int             @id @default(autoincrement())
+  orderId     Int             @map("order_id")
+  stageId     Int             @map("stage_id")
+  status      TaskStatus      @default(pending)
+  startedAt   DateTime?       @map("started_at")
+  completedAt DateTime?       @map("completed_at")
+  dueAt       DateTime?       @map("due_at")
+  order       Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stage       ProductionStage @relation(fields: [stageId], references: [id])
+
+  @@unique([orderId, stageId])
+  @@map("production_tasks")
+}
+
+model Alert {
+  id         Int           @id @default(autoincrement())
+  orderId    Int           @map("order_id")
+  type       AlertType
+  message    String        @db.Text
+  severity   AlertSeverity @default(info)
+  isResolved Boolean       @default(false) @map("is_resolved")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  order      Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("alerts")
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  orderId   Int      @map("order_id")
+  eventType String   @map("event_type")
+  payload   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
+}
