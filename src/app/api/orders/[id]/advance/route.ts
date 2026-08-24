@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { completeCurrentStage } from "@/lib/workflow";
+import { isAdmin } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +8,9 @@ export async function POST(
   _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (!isAdmin(_request)) {
+    return NextResponse.json({ error: "Chỉ admin được chuyển công đoạn" }, { status: 403 });
+  }
   const id = parseInt(params.id, 10);
   if (isNaN(id)) {
     return NextResponse.json({ error: "ID không hợp lệ" }, { status: 400 });

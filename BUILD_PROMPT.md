@@ -6,7 +6,7 @@
 
 Xây dựng hệ thống quản lý pipeline sản xuất gốm sứ với:
 - **Web UI**: Kanban dashboard + form tạo đơn + KPI
-- **Automation Workflow**: Tự tạo pipeline 5 stage, validate chuyển stage, cron cảnh báo SLA
+- **Automation Workflow**: Tự tạo pipeline 6 stage, validate chuyển stage, cron cảnh báo SLA
 - **AI**: Google Gemini 3.6 Flash parse đơn hàng tiếng Việt tự nhiên
 - **Chat Notification**: Telegram Bot (free) bắn alert
 
@@ -24,32 +24,37 @@ Xây dựng hệ thống quản lý pipeline sản xuất gốm sứ với:
 
 ## Database Schema (MySQL via Prisma)
 
-### ProductionStage (seed 5 rows cố định)
+### ProductionStage (seed 6 rows cố định)
 - id, name, slug, sequence, slaHours
 
 Stages:
-1. tiep_nhan (Tiếp nhận, SLA 4h)
-2. tao_khuon (Tạo khuôn, SLA 24h)
-3. nung (Nung, SLA 48h)
+1. tao_hinh_moc (Tạo hình mộc, SLA 24h)
+2. phoi_say_sua_moc (Phơi sấy & Sửa mộc, SLA 24h)
+3. ve_hoa_tiet (Vẽ họa tiết, SLA 24h)
 4. trang_men (Tráng men, SLA 24h)
-5. kiem_tra_giao (Kiểm tra & Giao, SLA 8h)
+5. nung_lo (Nung lò, SLA 48h)
+6. qc_dong_goi (QC & Đóng gói, SLA 8h)
 
 ### Order
 - id, orderCode (ORD-001), rawInput, parsedSpecs (JSON)
 - quantity, productType, glazeType, deadline, priority (normal|urgent)
 - status (active|completed|cancelled), currentStageId
 - createdAt, updatedAt, completedAt
+- heightCm, clayAmountKg, firingTemperatureC, firingDurationHours
 
 ### ProductionTask
 - id, orderId, stageId, status (pending|in_progress|completed)
 - startedAt, completedAt, dueAt
 
 ### Alert
-- id, orderId, type (DELAYED|DEADLINE_SOON|STUCK|ORDER_CREATED|STAGE_CHANGED|ORDER_COMPLETED)
+- id, orderId, type (DELAYED|DEADLINE_SOON|STUCK|ORDER_CREATED|STAGE_CHANGED|ORDER_COMPLETED|QC_ISSUE)
 - message, severity (info|warning|critical), isResolved, createdAt
 
 ### ActivityLog
 - id, orderId, eventType, payload (JSON), createdAt
+
+### QcInspection
+- orderId, inspectedQuantity, defectQuantity, defectType, notes, result, createdAt
 
 ## API Endpoints
 
@@ -61,6 +66,7 @@ PATCH  /api/orders/[id]         — Update priority/deadline
 
 GET    /api/kanban              — Tasks grouped by stage
 POST   /api/orders/[id]/advance — Complete current stage and move forward
+POST   /api/orders/[id]/qc — Ghi nhận kết quả QC và cảnh báo lỗi
 
 GET    /api/alerts              — Active alerts
 PATCH  /api/alerts/[id]/resolve — Resolve alert
@@ -72,9 +78,9 @@ POST   /api/cron/check-sla      — Manual trigger SLA check (dev)
 
 ## Workflow Rules
 
-1. **Order created** → AI parse → INSERT order → CREATE 5 tasks (stage 1 = in_progress, rest = pending) → Telegram notify → log
+1. **Order created** → AI parse → INSERT order → CREATE 6 tasks (stage 1 = in_progress, rest = pending) → Telegram notify → log
 2. **Move stage** → Validate: không nhảy stage, stage trước phải completed → update tasks → Telegram → log
-3. **Complete stage 5** → order.status = completed → Telegram success → log
+3. **Complete stage 6** → yêu cầu QC đạt → order.status = completed → Telegram success → log
 4. **Cron every 5 min**:
    - Task in_progress quá dueAt → Alert DELAYED → Telegram
    - Order deadline còn 24h → Alert DEADLINE_SOON → Telegram
@@ -91,7 +97,11 @@ System prompt parse JSON:
   "deadline_days": number,
   "priority": "normal|urgent",
   "notes": "string",
-  "confidence": 0.0-1.0
+  "confidence": 0.0-1.0,
+  "height_cm": number|null,
+  "clay_amount_kg": number|null,
+  "firing_temperature_c": number|null,
+  "firing_duration_hours": number|null
 }
 ```
 
@@ -111,7 +121,7 @@ Fallback: regex extract số lượng nếu AI fail.
 ## UI Pages
 
 1. `/` — Dashboard KPI (stats + recent alerts)
-2. `/kanban` — Kanban board 5 cột, drag or button move
+2. `/kanban` — Kanban board 6 cột, button move
 3. `/orders/new` — Textarea prompt + AI preview + submit
 4. `/orders/[id]` — Chi tiết đơn + timeline
 
@@ -123,6 +133,7 @@ GEMINI_API_KEY=xxx
 TELEGRAM_BOT_TOKEN=xxx
 TELEGRAM_CHAT_ID=xxx
 CRON_SECRET=random-string-for-manual-trigger
+TELEGRAM_WEBHOOK_SECRET=random-string-for-telegram-webhook
 ```
 
 ## File Structure
@@ -160,7 +171,8 @@ pottery-pipeline/
 
 ## Demo Script
 
-1. Nhập "50 ly sứ trắng men bóng, giao trong 7 ngày, gấp" → AI parse → card Kanban
+1. Nhập "200 bình gốm họa tiết sen men lam cao 35cm, đất sét 80kg, nung 1280°C trong 12 giờ, hoàn thành trong 10 ngày" → AI parse → card Kanban
 2. Chuyển stage → Telegram notification
 3. Dashboard hiện KPI
 4. Cron phát hiện trễ → alert UI + Telegram
+5. Chuyển đến QC, nhập sản phẩm lỗi → cảnh báo critical + Telegram; sửa kết quả thành đạt rồi hoàn tất đơn

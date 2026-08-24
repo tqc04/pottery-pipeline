@@ -18,6 +18,11 @@ enum Priority {
   urgent
 }
 
+enum UserRole {
+  user
+  admin
+}
+
 enum TaskStatus {
   pending
   in_progress
@@ -31,6 +36,7 @@ enum AlertType {
   ORDER_CREATED
   STAGE_CHANGED
   ORDER_COMPLETED
+  QC_ISSUE
 }
 
 enum AlertSeverity {
@@ -51,6 +57,18 @@ model ProductionStage {
   @@map("production_stages")
 }
 
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(user)
+  telegramChatId String? @unique @map("telegram_chat_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  orders       Order[]
+
+  @@map("users")
+}
+
 model Order {
   id             Int              @id @default(autoincrement())
   orderCode      String           @unique @map("order_code")
@@ -67,11 +85,38 @@ model Order {
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
   completedAt    DateTime?        @map("completed_at")
+  createdById    Int?             @map("created_by_id")
+  createdBy      User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  heightCm       Float?           @map("height_cm")
+  clayAmountKg   Float?           @map("clay_amount_kg")
+  firingTemperatureC Int?         @map("firing_temperature_c")
+  firingDurationHours Int?        @map("firing_duration_hours")
   tasks          ProductionTask[]
   alerts         Alert[]
   activityLogs   ActivityLog[]
+  qcInspection   QcInspection?
 
   @@map("orders")
+}
+
+enum QcResult {
+  passed
+  failed
+  rework
+}
+
+model QcInspection {
+  id              Int       @id @default(autoincrement())
+  orderId         Int       @unique @map("order_id")
+  inspectedQuantity Int     @map("inspected_quantity")
+  defectQuantity  Int       @default(0) @map("defect_quantity")
+  defectType      String?   @map("defect_type")
+  notes           String?   @db.Text
+  result          QcResult
+  createdAt       DateTime  @default(now()) @map("created_at")
+  order           Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("qc_inspections")
 }
 
 model ProductionTask {

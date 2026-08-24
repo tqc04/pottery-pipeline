@@ -5,7 +5,7 @@ import { KanbanColumn, KanbanTask } from "@/types";
 
 interface KanbanColumnProps {
   column: KanbanColumn;
-  onAdvance: (orderId: number) => void;
+  onAdvance?: (orderId: number) => void;
   advancingId: number | null;
 }
 

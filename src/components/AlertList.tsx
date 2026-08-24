@@ -20,6 +20,10 @@ const severityStyles: Record<string, string> = {
   info: "border-l-blue-500 bg-blue-50",
 };
 
+function getWebMessage(message: string): string {
+  return message.replace(/<\/?[a-z][^>]*>/gi, "");
+}
+
 export default function AlertList({ alerts, onResolve }: AlertListProps) {
   if (alerts.length === 0) {
     return (
@@ -39,7 +43,7 @@ export default function AlertList({ alerts, onResolve }: AlertListProps) {
           }`}
         >
           <div className="flex justify-between items-start gap-2">
-            <p className="text-stone-700">{alert.message}</p>
+            <p className="text-stone-700">{getWebMessage(alert.message)}</p>
             {onResolve && (
               <button
                 onClick={() => onResolve(alert.id)}

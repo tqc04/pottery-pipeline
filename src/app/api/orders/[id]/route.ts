@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/types/prisma";
+import { isAdmin } from "@/lib/roles";
+import { readSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +10,8 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const session = readSession(_request);
+  if (!session) return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
   const id = parseInt(params.id, 10);
   if (isNaN(id)) {
     return NextResponse.json({ error: "ID không hợp lệ" }, { status: 400 });
@@ -20,11 +24,15 @@ export async function GET(
       tasks: { include: { stage: true }, orderBy: { stage: { sequence: "asc" } } },
       activityLogs: { orderBy: { createdAt: "desc" } },
       alerts: { orderBy: { createdAt: "desc" }, take: 20 },
+      qcInspection: true,
     },
   });
 
   if (!order) {
     return NextResponse.json({ error: "Không tìm thấy đơn" }, { status: 404 });
+  }
+  if (session.role !== "admin" && order.createdById !== session.userId) {
+    return NextResponse.json({ error: "Bạn không có quyền xem đơn này" }, { status: 403 });
   }
 
   return NextResponse.json(order);
@@ -34,6 +42,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (!isAdmin(request)) {
+    return NextResponse.json({ error: "Chỉ admin được chỉnh deadline hoặc ưu tiên" }, { status: 403 });
+  }
   const id = parseInt(params.id, 10);
   if (isNaN(id)) {
     return NextResponse.json({ error: "ID không hợp lệ" }, { status: 400 });

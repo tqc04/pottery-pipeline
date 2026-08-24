@@ -1,17 +1,33 @@
 import { PrismaClient } from "@prisma/client";
+import { hashPassword } from "../src/lib/password";
 
 const prisma = new PrismaClient();
 
 const STAGES = [
-  { name: "Tiếp nhận", slug: "tiep_nhan", sequence: 1, slaHours: 4 },
-  { name: "Tạo khuôn", slug: "tao_khuon", sequence: 2, slaHours: 24 },
-  { name: "Nung", slug: "nung", sequence: 3, slaHours: 48 },
+  { name: "Tạo hình mộc", slug: "tao_hinh_moc", sequence: 1, slaHours: 24 },
+  { name: "Phơi sấy & Sửa mộc", slug: "phoi_say_sua_moc", sequence: 2, slaHours: 24 },
+  { name: "Vẽ họa tiết", slug: "ve_hoa_tiet", sequence: 3, slaHours: 24 },
   { name: "Tráng men", slug: "trang_men", sequence: 4, slaHours: 24 },
-  { name: "Kiểm tra & Giao", slug: "kiem_tra_giao", sequence: 5, slaHours: 8 },
+  { name: "Nung lò", slug: "nung_lo", sequence: 5, slaHours: 48 },
+  { name: "QC & Đóng gói", slug: "qc_dong_goi", sequence: 6, slaHours: 8 },
 ];
 
 async function main() {
   console.log("🌱 Seeding database...");
+
+  // Migrate the original five-stage demo names before adding the new stage.
+  const legacyMigrations = [
+    ["tiep_nhan", "Tạo hình mộc", "tao_hinh_moc", 1, 24],
+    ["tao_khuon", "Phơi sấy & Sửa mộc", "phoi_say_sua_moc", 2, 24],
+    ["nung", "Vẽ họa tiết", "ve_hoa_tiet", 3, 24],
+    ["kiem_tra_giao", "QC & Đóng gói", "qc_dong_goi", 6, 8],
+  ] as const;
+  for (const [oldSlug, name, slug, sequence, slaHours] of legacyMigrations) {
+    await prisma.productionStage.updateMany({
+      where: { slug: oldSlug },
+      data: { name, slug, sequence, slaHours },
+    });
+  }
 
   for (const stage of STAGES) {
     await prisma.productionStage.upsert({
@@ -24,6 +40,39 @@ async function main() {
   const stages = await prisma.productionStage.findMany({
     orderBy: { sequence: "asc" },
   });
+
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@pottery.local";
+  const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+  const userEmail = process.env.USER_EMAIL || "user@pottery.local";
+  const userPassword = process.env.USER_PASSWORD || "user123";
+  await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: { role: "admin", passwordHash: hashPassword(adminPassword) },
+    create: { email: adminEmail, role: "admin", passwordHash: hashPassword(adminPassword) },
+  });
+  await prisma.user.upsert({
+    where: { email: userEmail },
+    update: { role: "user", passwordHash: hashPassword(userPassword) },
+    create: { email: userEmail, role: "user", passwordHash: hashPassword(userPassword) },
+  });
+
+  const existingOrdersForMigration = await prisma.order.findMany({
+    select: { id: true },
+  });
+  for (const order of existingOrdersForMigration) {
+    const existingTasks = await prisma.productionTask.findMany({
+      where: { orderId: order.id },
+      select: { stageId: true },
+    });
+    const taskStageIds = new Set(existingTasks.map((task) => task.stageId));
+    const missingStages = stages.filter((stage) => !taskStageIds.has(stage.id));
+    if (missingStages.length > 0) {
+      await prisma.productionTask.createMany({
+        data: missingStages.map((stage) => ({ orderId: order.id, stageId: stage.id })),
+        skipDuplicates: true,
+      });
+    }
+  }
 
   const existingOrders = await prisma.order.count();
   if (existingOrders > 0) {
@@ -82,12 +131,20 @@ async function main() {
           glaze_type: sample.glazeType,
           deadline_days: sample.deadlineDays,
           priority: sample.priority,
+          height_cm: null,
+          clay_amount_kg: null,
+          firing_temperature_c: null,
+          firing_duration_hours: null,
         },
         quantity: sample.quantity,
         productType: sample.productType,
         glazeType: sample.glazeType,
         deadline,
         priority: sample.priority,
+        heightCm: null,
+        clayAmountKg: null,
+        firingTemperatureC: null,
+        firingDurationHours: null,
         currentStageId: currentStage.id,
         tasks: {
           create: stages.map((stage, index) => {

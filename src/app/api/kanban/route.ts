@@ -1,16 +1,22 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { ProductionStage, ActiveOrderForKanban } from "@/types/prisma";
+import { readSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const session = readSession(request);
+  if (!session) return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
   const stages: ProductionStage[] = await prisma.productionStage.findMany({
     orderBy: { sequence: "asc" },
   });
 
   const activeOrders: ActiveOrderForKanban[] = await prisma.order.findMany({
-    where: { status: "active" },
+    where: {
+      status: "active",
+      ...(session.role !== "admin" && { createdById: session.userId }),
+    },
     include: {
       currentStage: true,
       tasks: {

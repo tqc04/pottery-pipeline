@@ -8,6 +8,7 @@ export default function KanbanBoard() {
   const [columns, setColumns] = useState<KanbanColumn[]>([]);
   const [loading, setLoading] = useState(true);
   const [advancingId, setAdvancingId] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const fetchKanban = useCallback(async () => {
     try {
@@ -22,6 +23,9 @@ export default function KanbanBoard() {
   }, []);
 
   useEffect(() => {
+    fetch("/api/auth/me")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((session) => setIsAdmin(session?.role === "admin"));
     fetchKanban();
     const interval = setInterval(fetchKanban, 8000);
     return () => clearInterval(interval);
@@ -59,7 +63,7 @@ export default function KanbanBoard() {
           <KanbanColumnComponent
             key={col.stage.id}
             column={col}
-            onAdvance={handleAdvance}
+            onAdvance={isAdmin ? handleAdvance : undefined}
             advancingId={advancingId}
           />
         ))}

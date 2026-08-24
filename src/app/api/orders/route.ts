@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrderInputError } from "@/lib/ai-parser";
 import { createOrderFromText } from "@/lib/workflow";
+import { readSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  const session = readSession(request);
+  if (!session) return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
   const status = request.nextUrl.searchParams.get("status");
   const validStatuses = ["active", "completed", "cancelled"] as const;
 
@@ -14,7 +17,10 @@ export async function GET(request: NextRequest) {
   }
 
   const orders = await prisma.order.findMany({
-    where: status ? { status: status as (typeof validStatuses)[number] } : undefined,
+    where: {
+      ...(status && { status: status as (typeof validStatuses)[number] }),
+      ...(session.role !== "admin" && { createdById: session.userId }),
+    },
     include: {
       currentStage: true,
       tasks: { include: { stage: true }, orderBy: { stage: { sequence: "asc" } } },
@@ -27,6 +33,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = readSession(request);
+    if (!session) return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
     const body = await request.json();
     const { rawText } = body as { rawText?: string };
 
@@ -42,7 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: inputError }, { status: 400 });
     }
 
-    const order = await createOrderFromText(rawText.trim());
+    const order = await createOrderFromText(rawText.trim(), session.userId);
     return NextResponse.json(order, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Lỗi tạo đơn";

@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import RoleSwitcher from "@/components/RoleSwitcher";
 
 const links = [
   { href: "/", label: "Dashboard" },
   { href: "/kanban", label: "Kanban" },
   { href: "/orders/new", label: "Tạo đơn" },
+  { href: "/account", label: "Tài khoản" },
 ];
 
 export default function Navbar() {
@@ -22,20 +24,23 @@ export default function Navbar() {
               Pottery Pipeline
             </span>
           </Link>
-          <div className="flex gap-1">
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  pathname === link.href
-                    ? "bg-amber-100 text-amber-900"
-                    : "text-stone-600 hover:bg-stone-100"
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              {links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    pathname === link.href
+                      ? "bg-amber-100 text-amber-900"
+                      : "text-stone-600 hover:bg-stone-100"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+            <RoleSwitcher />
           </div>
         </div>
       </div>

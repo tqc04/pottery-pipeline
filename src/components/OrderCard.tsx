@@ -5,7 +5,7 @@ import { KanbanTask, PRODUCT_LABELS } from "@/types";
 
 interface OrderCardProps {
   task: KanbanTask;
-  onAdvance: (orderId: number) => void;
+  onAdvance?: (orderId: number) => void;
   advancing?: boolean;
 }
 
@@ -60,13 +60,15 @@ export default function OrderCard({ task, onAdvance, advancing }: OrderCardProps
         <p className="text-xs text-red-600 font-medium mt-1">🔴 Trễ SLA stage</p>
       )}
 
-      <button
-        onClick={() => onAdvance(order.id)}
-        disabled={advancing}
-        className="mt-3 w-full text-xs bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white py-1.5 rounded-md transition-colors"
-      >
-        {advancing ? "Đang xử lý..." : "Hoàn thành stage →"}
-      </button>
+      {onAdvance && (
+        <button
+          onClick={() => onAdvance(order.id)}
+          disabled={advancing}
+          className="mt-3 w-full text-xs bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white py-1.5 rounded-md transition-colors"
+        >
+          {advancing ? "Đang xử lý..." : "Hoàn thành stage →"}
+        </button>
+      )}
     </div>
   );
 }

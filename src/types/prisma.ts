@@ -14,6 +14,8 @@ export type {
   ProductionTask,
   TaskStatus,
   OrderStatus,
+  User,
+  UserRole,
 } from "@prisma/client";
 
 export { Prisma, PrismaClient } from "@prisma/client";

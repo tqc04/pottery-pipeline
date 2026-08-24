@@ -127,6 +127,22 @@ export default function NewOrderPage() {
               <dt className="text-stone-500">Confidence</dt>
               <dd className="font-medium">{(parsed.confidence * 100).toFixed(0)}%</dd>
             </div>
+            <div>
+              <dt className="text-stone-500">Chiều cao</dt>
+              <dd className="font-medium">{parsed.height_cm ? `${parsed.height_cm} cm` : "Chưa xác định"}</dd>
+            </div>
+            <div>
+              <dt className="text-stone-500">Đất sét dự kiến</dt>
+              <dd className="font-medium">{parsed.clay_amount_kg ? `${parsed.clay_amount_kg} kg` : "Chưa xác định"}</dd>
+            </div>
+            <div>
+              <dt className="text-stone-500">Nhiệt độ nung</dt>
+              <dd className="font-medium">{parsed.firing_temperature_c ? `${parsed.firing_temperature_c} °C` : "Chưa xác định"}</dd>
+            </div>
+            <div>
+              <dt className="text-stone-500">Thời gian nung</dt>
+              <dd className="font-medium">{parsed.firing_duration_hours ? `${parsed.firing_duration_hours} giờ` : "Chưa xác định"}</dd>
+            </div>
           </dl>
           {parsed.notes && (
             <p className="text-xs text-stone-500 mt-3">Ghi chú: {parsed.notes}</p>

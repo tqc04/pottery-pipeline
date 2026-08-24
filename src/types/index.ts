@@ -6,6 +6,10 @@ export interface ParsedOrderSpecs {
   priority: "normal" | "urgent";
   notes: string;
   confidence: number;
+  height_cm: number | null;
+  clay_amount_kg: number | null;
+  firing_temperature_c: number | null;
+  firing_duration_hours: number | null;
 }
 
 export interface KanbanColumn {
@@ -45,6 +49,24 @@ export interface DashboardStats {
   completedToday: number;
   avgLeadTimeDays: number;
   alertsCount: number;
+  period: "7d" | "30d" | "12m";
+  selectedDate: string;
+  trend: DashboardTrendPoint[];
+  stageBreakdown: DashboardBreakdown[];
+  productBreakdown: DashboardBreakdown[];
+}
+
+export interface DashboardTrendPoint {
+  key: string;
+  label: string;
+  created: number;
+  completed: number;
+  quantity: number;
+}
+
+export interface DashboardBreakdown {
+  label: string;
+  value: number;
 }
 
 export const PRODUCT_LABELS: Record<string, string> = {
@@ -57,9 +79,10 @@ export const PRODUCT_LABELS: Record<string, string> = {
 };
 
 export const STAGE_SLUGS = [
-  "tiep_nhan",
-  "tao_khuon",
-  "nung",
+  "tao_hinh_moc",
+  "phoi_say_sua_moc",
+  "ve_hoa_tiet",
   "trang_men",
-  "kiem_tra_giao",
+  "nung_lo",
+  "qc_dong_goi",
 ] as const;
